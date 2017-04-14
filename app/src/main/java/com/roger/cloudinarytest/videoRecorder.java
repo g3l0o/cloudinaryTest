@@ -1,14 +1,19 @@
 package com.roger.cloudinarytest;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -19,8 +24,19 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 
 public class videoRecorder extends AppCompatActivity {
+
+    /** Code that is used for the response of permission granting alerts */
+    private static final int REQUEST_CAMERA_PERMISSION_CALLBACK = 0x1234;
+
+    /** Android permissions that will be asked to the user in order to record (> Android Lolipop 5.0) */
+    private static final String[] RECORD_PERMISSIONS = {
+            Manifest.permission.CAMERA,
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
 
     private static final int MAX_VIDEO_SIZE = 10_485_760; //10 MiB = 10 * 1024 * 1024
     private static final int MAX_RECORD_TIME = 60_000; //60 milisec
@@ -47,21 +63,11 @@ public class videoRecorder extends AppCompatActivity {
 
         setContentView(R.layout.activity_video_recorder);
 
-
-        //Get Camera for preview
-        mCamera = getCameraInstance();
-        mCamera.setDisplayOrientation(90);
-        if(mCamera == null){
-            Toast.makeText(videoRecorder.this, "Fail to get Camera", Toast.LENGTH_LONG).show();
+        if(hasPermission()) {
+            setupCamera();
+        } else {
+            //will not finish activity until user explicitly denies permissions
         }
-
-        myCameraSurfaceView = new MyCameraSurfaceView(this, mCamera);
-        FrameLayout myCameraPreview = (FrameLayout)findViewById(R.id.videoview);
-        myCameraPreview.addView(myCameraSurfaceView);
-
-        recordButton = (FloatingActionButton)findViewById(R.id.fab);
-        recordButton.setImageResource(R.drawable.ic_record);
-        recordButton.setOnClickListener(recordButtonListener);
 
     }
 
@@ -105,6 +111,107 @@ public class videoRecorder extends AppCompatActivity {
         releaseMediaRecorder();
         releaseCamera();
     }
+
+    /** Determines if the user has granted a group of permissions to the app */
+    public static boolean hasPermissions(Context context, String ... permissions) {
+
+        for(String p : permissions) {
+            if(ContextCompat.checkSelfPermission(context, p) != PackageManager.PERMISSION_GRANTED) {
+                Log.w("PERMISSIONS", "No Pemission for " + p);
+                return false;
+            }
+
+            Log.d("PERMISSIONS", "Has permission :" + p);
+        }
+
+
+
+
+        return true;
+    }
+
+    /** Returns true if the user has permission to use the Camera,
+     * If the user has no permission, then the permission prompt will be shown to the user.
+     * If this is the second or more time the user has not accepted the permission, an explanation
+     * will be shown to the user on why he needs the permission
+     *
+     * @return true if the user has the permission, false if not
+     */
+    private boolean hasPermission() {
+        // Check for camera permission
+        if (!(videoRecorder.hasPermissions(this, RECORD_PERMISSIONS))) {
+
+            // No explanation needed for Camera Recording, we can request directly the permission.
+            ActivityCompat.requestPermissions(this,
+                    RECORD_PERMISSIONS,
+                    REQUEST_CAMERA_PERMISSION_CALLBACK);
+
+            return false; //no permission, will be requested
+
+        } else {
+            return true;  //has permission
+        }
+
+    }
+
+
+    /** Called when the user accepts or denies a permission from the prompt alert
+     *
+     * In this screen, user should accept all the following: CAMERA
+     *
+     * Once the permissions are granted, then the video recording functionality can be set up.
+     *
+     * */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case REQUEST_CAMERA_PERMISSION_CALLBACK: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                    // permission was granted, yay! Do the
+                    // camera task you need to do.
+                    setupCamera();
+
+                } else {
+
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                    finish();
+                }
+                return;
+            }
+
+            // other 'case' lines to check for other permissions this app might request
+        }
+    }
+
+    /**
+     * Setups the activity for recording. This should only be called once
+     * the user has granted camera and storage permissions.
+     */
+    private void setupCamera(){
+
+        //Get Camera for preview
+        mCamera = getCameraInstance();
+        if(mCamera == null){
+            Toast.makeText(videoRecorder.this, "Fail to get Camera", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        mCamera.setDisplayOrientation(90);
+        myCameraSurfaceView = new MyCameraSurfaceView(this, mCamera);
+        FrameLayout myCameraPreview = (FrameLayout)findViewById(R.id.videoview);
+        myCameraPreview.addView(myCameraSurfaceView);
+
+        recordButton = (FloatingActionButton)findViewById(R.id.fab);
+        recordButton.setImageResource(R.drawable.ic_record);
+        recordButton.setOnClickListener(recordButtonListener);
+    }
+
+
+
 
     private Camera getCameraInstance(){
         Camera c = null;

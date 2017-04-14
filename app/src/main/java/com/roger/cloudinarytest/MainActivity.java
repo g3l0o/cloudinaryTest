@@ -24,6 +24,7 @@ import android.widget.VideoView;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 
+import java.io.FileInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
@@ -87,12 +88,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         if(requestCode == REQUEST_VIDEO_CAPTURE && resultCode == RESULT_OK){
-            Toast.makeText(getApplicationContext(), intent.getStringExtra("URL"), Toast.LENGTH_SHORT).show();
             playVideo(intent.getStringExtra("URL"));
 
             AsyncTask uploader = new ASTVideo();
             String uri = intent.getStringExtra("URL");
-            uploader.execute(uri);
+            uploader.execute(getVideoStream(uri));
+
+
         }
 
 
@@ -112,6 +114,24 @@ public class MainActivity extends AppCompatActivity {
         }catch (Exception e){
             e.printStackTrace();
         }
+    }
+
+    public InputStream getVideoStream(String uri){
+        InputStream is;
+
+        try {
+            return is = getContentResolver().openInputStream(android.net.Uri.parse(uri.toString()));
+        } catch (IOException e) {
+            try {
+                return is = new FileInputStream(uri.toString());
+            }catch (IOException ioe){
+                ioe.printStackTrace();
+            }
+            e.printStackTrace();
+        }finally {
+
+        }
+        return null;
     }
 
     public void uploadImage(final InputStream inputStream) {
@@ -161,6 +181,7 @@ public class MainActivity extends AppCompatActivity {
         return new Cloudinary(config);
     }
 
+
     private class ASTVideo extends AsyncTask{
 
         ProgressDialog progressDialog;
@@ -168,7 +189,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         protected void onPreExecute() {
             progressDialog = ProgressDialog.show(MainActivity.this, "Subiendo Video", "Estamos subiendo tu video");
-            Log.wtf("video", "acá ando");
         }
 
         @Override
@@ -180,9 +200,7 @@ public class MainActivity extends AppCompatActivity {
             options.put("resource_type", "video");
 
             try {
-                InputStream is = getContentResolver().openInputStream(android.net.Uri.parse(params[0].toString()));
-                uploadResult = cloudinary.uploader().upload(is, options);
-
+                uploadResult = cloudinary.uploader().upload(params[0], options);
             } catch (OutOfMemoryError ooe){
                 Toast.makeText(MainActivity.this, "El video es muy largo", Toast.LENGTH_SHORT).show();
             } catch (IOException e) {
